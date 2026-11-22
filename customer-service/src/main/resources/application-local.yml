@@ -22,3 +22,7 @@ management:
   endpoint:
     health:
       show-details: always
+
+treasuryhub:
+  api-docs:
+    ui-origin: ${API_DOCS_UI_ORIGIN:http://localhost:8091}
