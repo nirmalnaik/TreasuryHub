@@ -31,6 +31,13 @@ spring:
       observation-enabled: true
 
 management:
+  metrics:
+    enable:
+      db.client: false
+      jdbc: false
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:
@@ -50,9 +57,17 @@ management:
     kafka:
       enabled: false
 
+jdbc:
+  includes: QUERY,CONNECTION
+  datasource-proxy:
+    include-parameter-values: false
+  opentelemetry:
+    metrics:
+      enabled: false
+
 logging:
   file:
-    name: ${TREASURYHUB_LOG_FILE:logs/payment-service.json}
+    name: ${TREASURYHUB_LOG_FILE:../logs/payment-service.json}
   structured:
     format:
       file: ecs

@@ -1,35 +1,82 @@
 # TreasuryHub — Project State
-Updated: 2026-10-26
+
+Updated: 2026-11-21
 
 ## Goal
-Learn practical Java/Spring Boot banking microservices via short GitHub issues, Codex-assisted implementation, deliberate failure scenarios, tests, and interview reviews. Favor depth over feature count.
+
+Learn practical Java/Spring Boot banking microservices through focused tickets, tests, failure analysis, and review. Favor explicit service ownership and depth over feature count.
 
 ## Current architecture
-- Maven monorepo; Java 17 target, Spring Boot 3.5.4.
-- customer-service (8081; customer_db / PostgreSQL 5433)
-- account-service (8082; account_db / PostgreSQL 5434)
-- payment-service (8083; payment_db / PostgreSQL 5435)
-- Docker Compose: three PostgreSQL instances, Kafka (9092), Kafka UI (8090).
-- Flyway migrations per service. No implemented business APIs, JPA domain entities, inter-service clients, Kafka producers/consumers or security at the 2026-10-26 audit.
 
-## Verified milestones
-- Local Git initialized; initial baseline commit `9c9d35f`; branch `main` was clean.
-- GitHub remote connected, per developer confirmation.
-- Docker infrastructure: 3 PostgreSQL containers and Kafka healthy; Kafka UI running (`docker ps`).
-- Customer-service Docker integration test: user reports one passing test.
-- Earlier audit: Maven test/verify passed; integration test could not run at audit time because Docker was inaccessible then.
+- Maven multimodule monorepo; Java 17 target; Spring Boot 3.5.4.
+- Customer Service (`8081`) owns company and corporate-user identity in `customer_db` (`5433`).
+- Account Service (`8082`) owns bank accounts in `account_db` (`5434`).
+- Payment Service (`8083`) owns payment workflow data in `payment_db` (`5435`); no business HTTP routes yet.
+- Kafka (`9092`) and Kafka UI (`8090`) are provisioned, but no business producers or consumers exist.
+- Centralized browse-only Swagger UI runs on `8091`.
+- Grafana (`3000`), Tempo (`3200`), Prometheus (`9090`), Loki (`3100`), and Alloy (`4317`, `4318`, `12345`) provide local observability.
+- Applications run on the Windows host from IntelliJ/Maven; infrastructure runs through Docker Compose.
+
+## Implemented business behavior
+
+- Company registration is implemented with validation, Flyway-managed schema, duplicate handling, and tests.
+- Corporate-user registration code exists, but its HTTP route remains deliberately blocked with `403` until corporate ADMIN authorization is implemented.
+- Basic account creation and lookup are implemented with validation and error handling.
+- Payment persistence exists, but payment workflow endpoints and Kafka workflows are not implemented.
+- No service reads or writes another service's database, and no cross-service API calls exist.
+
+## TH-OBS-02 observability — pending developer review
+
+Branch: `feature/TH-OBS-02-observability`
+
+### Phase A — application instrumentation
+
+- Micrometer Prometheus registry, OpenTelemetry tracing bridge, OTLP exporter, and Spring AOP enabled in all services.
+- Distinct service resources, configurable sampling, W3C propagation, HTTP tracing, selected `@Observed` business spans, and compatible JDBC tracing.
+- Local Prometheus endpoints and HTTP latency histograms enabled.
+- ECS JSON files include trace/span identifiers and use bounded rotation.
+- Test profile disables OTLP export; observability configuration tests cover service identity and Prometheus exposure.
+- JDBC query parameters are not captured. Experimental per-query JDBC metrics are disabled because the compatible library can emit inconsistent Prometheus label sets; standard Hikari pool metrics remain.
+
+### Phase B — Grafana infrastructure
+
+- Pinned Alloy, Tempo, Prometheus, and Grafana images in Compose.
+- Tempo service-graph/span-metric generation writes to Prometheus.
+- Prometheus scrapes host applications through `host.docker.internal`.
+- Grafana provisions Prometheus, Tempo, and the TreasuryHub Overview dashboard automatically.
+
+### Phase C — centralized logging
+
+- Pinned Loki image with seven-day local retention.
+- Alloy tails gitignored host ECS JSON files through a read-only Windows-to-Docker bind mount.
+- Grafana provisions Loki, Tempo-to-logs navigation, and Loki log-to-trace derived fields.
+
+## Verification on 2026-11-21
+
+- `mvnw.cmd clean test`: **34 tests passed**, zero failures/errors/skips.
+- `docker compose config --quiet`: passed.
+- All existing and new observability containers started; health checks passed.
+- All three applications started against their existing PostgreSQL databases.
+- All three `/actuator/prometheus` endpoints returned `200`; Prometheus reported all three targets `up=1`.
+- Centralized Swagger returned `200`; application OpenAPI tests passed.
+- Corporate-user POST remained blocked with `403`.
+- A sample company and account were created successfully without cross-service calls.
+- Tempo returned the sample HTTP trace with its business and sanitized JDBC spans.
+- Tempo generated real service/database and external-caller service-graph series; no fake service-to-service edges were introduced.
+- Loki returned the application log stream for the same trace ID.
+- Grafana reported healthy, provisioned all three data sources, and loaded the TreasuryHub Overview dashboard.
+
+## Known limitations
+
+- No cross-service HTTP or Kafka business traffic exists, so the Service Graph cannot show Customer → Account → Payment edges.
+- Local observability is single-node and intended for learning, not high availability.
+- Local trace sampling defaults to 100%; production-like loads should configure a lower value.
+- Grafana's default local credentials must not be reused outside local development.
+- The interface/implementation consistency refactor requested separately is preserved in a Git stash and is not mixed into TH-OBS-02.
 
 ## Next work
-1. Confirm whether minimal CI exists; add it only if missing.
-2. TH-002: corporate customer onboarding vertical slice (Flyway, entity, repository, service, controller, validation, errors, PostgreSQL tests).
-3. TH-003: account opening and lifecycle.
 
-## Engineering principles
-- Customer Service owns company identity; Account Service owns accounts/ledger; Payment Service owns payment requests and approval/execution workflow.
-- Each service owns its database. Cross-service access through contracts, not another service's tables.
-- Financial transfers require ledger invariants, atomic posting, idempotency, and concurrency safeguards before claims of correctness.
-- Keep 15 core tickets and 3 stretch tickets as a tentative roadmap, not a rigid schedule.
-- Do not add gateway, Kubernetes, Redis, service mesh or extra services without demonstrated need.
-
-## Handoff at end of each ticket
-Update this file with ticket ID, branch/PR, changes, commands/tests and outcomes, known failures, decisions, and next ticket. Reference issue/PR links rather than duplicating code or lengthy discussions.
+1. Developer review of TH-OBS-02; do not commit, push, or merge until approved.
+2. Add real trace-propagating HTTP/Kafka interactions only when their business tickets require them.
+3. Implement corporate ADMIN authentication/authorization before enabling corporate-user registration.
+4. Continue account/ledger and payment workflow tickets with transaction, idempotency, concurrency, and ledger-invariant review.

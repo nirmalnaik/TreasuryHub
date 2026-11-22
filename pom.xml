@@ -30,7 +30,7 @@
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <springdoc.version>2.9.1</springdoc.version>
-        <datasource-micrometer.version>2.3.1</datasource-micrometer.version>
+        <datasource-micrometer.version>1.5.1</datasource-micrometer.version>
         <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
 
@@ -77,6 +77,7 @@
                     <artifactId>maven-surefire-plugin</artifactId>
                     <configuration>
                         <excludedGroups>docker</excludedGroups>
+                        <useSystemClassLoader>false</useSystemClassLoader>
                     </configuration>
                 </plugin>
             </plugins>
