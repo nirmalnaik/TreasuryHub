@@ -4,7 +4,7 @@
 >
 > Companion narrative: [architecture.md](./architecture.md)
 
-**Last updated:** 2026-08-03 (local development foundation)
+**Last updated:** 2026-11-21 (local observability integration)
 
 ---
 
@@ -45,6 +45,12 @@ flowchart TB
         PDB[("payment_db<br/>:5435")]
         K["Kafka KRaft<br/>:9092"]
         KUI["Kafka UI<br/>:8090"]
+        SW["Central Swagger<br/>:8091"]
+        ALLOY["Alloy<br/>OTLP :4317/:4318"]
+        TEMPO["Tempo<br/>:3200"]
+        PROM["Prometheus<br/>:9090"]
+        LOKI["Loki<br/>:3100"]
+        GRAFANA["Grafana<br/>:3000"]
     end
 
     Dev --> CS
@@ -56,6 +62,13 @@ flowchart TB
     PS --> PDB
     PS -. configured, unused yet .-> K
     KUI --> K
+    SW -. OpenAPI reads .-> CS & AS & PS
+    CS & AS & PS -->|OTLP traces| ALLOY
+    ALLOY --> TEMPO
+    PROM -->|scrape via host.docker.internal| CS & AS & PS
+    ALLOY -->|structured logs| LOKI
+    TEMPO -->|service graph metrics| PROM
+    GRAFANA --> PROM & TEMPO & LOKI
 ```
 
 ---
@@ -73,6 +86,13 @@ flowchart TB
 | kafka | 9092 | Broker for host apps (`localhost:9092`) |
 | kafka (internal) | 9094 | In-compose listener (`kafka:9094`) |
 | kafka-ui | 8090 | Topic / message inspection UI |
+| api-docs | 8091 | Centralized browse-only Swagger UI |
+| Grafana | 3000 | Dashboards and telemetry exploration |
+| Loki | 3100 | Local log API diagnostics |
+| Tempo | 3200 | Local trace API diagnostics |
+| Alloy | 4317 / 4318 | Host OTLP gRPC / HTTP receivers |
+| Prometheus | 9090 | Metrics UI and API |
+| Alloy UI | 12345 | Collector component diagnostics |
 
 **Hard rule:** no service may read or write another service’s database.
 
@@ -140,6 +160,7 @@ sequenceDiagram
     participant PG as Service PostgreSQL
     participant FW as Flyway
     participant K as Kafka
+    participant O as Alloy / Tempo / Loki
 
     Note over Dev,K: Infrastructure starts via docker compose up -d
     Dev->>App: spring-boot:run / IntelliJ
@@ -147,6 +168,7 @@ sequenceDiagram
     App->>FW: migrate on startup
     FW->>PG: V1__initial_schema.sql
     App->>Dev: /actuator/health UP
+    App->>O: OTLP traces and structured log files
 
     Note over App,K: payment-service only — broker config present,<br/>no producers/consumers/topics yet
     App-->>K: bootstrap-servers localhost:9092
@@ -164,6 +186,12 @@ flowchart TB
         PDB["payment-db<br/>postgres:16-alpine"]
         K["kafka<br/>apache/kafka:3.9.0 KRaft"]
         KUI["kafka-ui<br/>provectuslabs/kafka-ui"]
+        SW["api-docs<br/>swagger-ui"]
+        ALLOY["alloy"]
+        TEMPO["tempo"]
+        PROM["prometheus"]
+        LOKI["loki"]
+        GRAFANA["grafana"]
     end
 
     CDB --- V1[(customer-db-data)]
@@ -171,6 +199,10 @@ flowchart TB
     PDB --- V3[(payment-db-data)]
     K --- V4[(kafka-data)]
     KUI -->|bootstrap kafka:9094| K
+    ALLOY --> TEMPO
+    ALLOY --> LOKI
+    TEMPO --> PROM
+    GRAFANA --> PROM & TEMPO & LOKI
 ```
 
 Application containers are **not** in Compose yet; apps run from the host for easy debugging.
@@ -235,8 +267,7 @@ Keep these **out** of the active diagrams until they are introduced:
 - Service discovery (Eureka, Consul, …)
 - Config Server
 - Kubernetes
-- Spring Security / OAuth
-- Distributed tracing
+- Full authentication and authorization (OAuth/OIDC)
 - Resilience libraries
 - Redis
 - Shared common library
@@ -253,3 +284,6 @@ When any of these land, add them to sections 1, 2, 6, and 7 and remove them from
 | http://localhost:8082/actuator/health | account-service UP |
 | http://localhost:8083/actuator/health | payment-service UP |
 | http://localhost:8090 | Kafka UI |
+| http://localhost:8091 | Centralized Swagger UI |
+| http://localhost:3000 | Grafana |
+| http://localhost:9090/targets | Prometheus targets |

@@ -1,10 +1,10 @@
 # TreasuryHub — corporate banking and cash-management microservices (learning platform)
 
-TreasuryHub is a production-style Java microservices learning platform for corporate banking and cash management. It contains three independently runnable Spring Boot services, dedicated PostgreSQL databases, Kafka (KRaft), Flyway, and centralized local API documentation.
+TreasuryHub is a production-style Java microservices learning platform for corporate banking and cash management. It contains three independently runnable Spring Boot services, dedicated PostgreSQL databases, Kafka (KRaft), Flyway, centralized local API documentation, and a locally runnable Grafana observability stack.
 
 ## Architecture overview
 
-Maven monorepo with three independently deployable services. Each service owns its database. Infrastructure (PostgreSQL × 3, Kafka, Kafka UI, centralized Swagger UI) runs in Docker Compose; applications run from Maven or IntelliJ for easy debugging.
+Maven monorepo with three independently deployable services. Each service owns its database. Infrastructure (PostgreSQL × 3, Kafka, Kafka UI, centralized Swagger UI, Alloy, Tempo, Prometheus, Loki, and Grafana) runs in Docker Compose; applications run from Maven or IntelliJ for easy debugging.
 
 See [docs/architecture.md](docs/architecture.md) for design rationale and [docs/architecture-diagram.md](docs/architecture-diagram.md) for the living architecture diagrams (update that file whenever topology changes).
 
@@ -44,7 +44,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-PowerShell (same commands). Expect `customer-db`, `account-db`, `payment-db`, `kafka`, `kafka-ui`, and `api-docs` to be running; databases should report healthy.
+PowerShell uses the same commands. Expect the databases, Kafka, Swagger, and the five observability containers to be running. Services with health checks should report healthy.
 
 ## Run each service from Maven
 
@@ -85,6 +85,32 @@ Default profile is `local` (see each service’s `application.yml`).
 
 Info endpoints: `/actuator/info` on the same ports.
 
+Prometheus endpoints are available in the local profile:
+
+- http://localhost:8081/actuator/prometheus
+- http://localhost:8082/actuator/prometheus
+- http://localhost:8083/actuator/prometheus
+
+## Observability
+
+Start infrastructure with `docker compose up -d`, then start the three applications from IntelliJ or Maven. Open:
+
+| Tool | URL | Purpose |
+| --- | --- | --- |
+| Grafana | http://localhost:3000 | Dashboards, metrics, traces, service graph, and logs |
+| Prometheus | http://localhost:9090 | Scrape targets and raw PromQL diagnostics |
+| Tempo | http://localhost:3200 | Trace API diagnostics |
+| Loki | http://localhost:3100 | Log API diagnostics |
+| Alloy | http://localhost:12345 | Collector component health |
+
+Grafana's local-only default credentials are `admin` / `admin`; override them before first startup with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`. The provisioned **TreasuryHub Overview** dashboard shows service health, request rate, error rate, p95/p99 latency, JVM, CPU, GC, and database-pool metrics.
+
+Applications send OTLP traces to Alloy at `http://localhost:4318/v1/traces`. Prometheus reaches applications running on Windows through `host.docker.internal`; containers must not use `localhost` to reach host applications. Local sampling defaults to 100% and can be changed with `MANAGEMENT_TRACING_SAMPLING_PROBABILITY`, for example `0.25`.
+
+Structured application logs are written to the repository's gitignored `logs/` directory when the Maven/IntelliJ working directory is the service module. Set `TREASURYHUB_LOG_FILE` to an explicit file path if your IntelliJ run configuration uses another working directory.
+
+See [docs/observability.md](docs/observability.md) for traffic examples, Service Graph navigation, trace/log correlation, configuration details, and limitations.
+
 ## API documentation
 
 Start Docker Compose and all three Spring Boot services, then open the centralized, browse-only API catalog:
@@ -123,7 +149,7 @@ Kafka for local apps: `localhost:9092` (configured in `payment-service` via `KAF
 docker compose down
 ```
 
-Named volumes are kept; database and Kafka data remain.
+Named volumes are kept; database, Kafka, and observability data remain.
 
 ## Reset all local database and Kafka data
 
@@ -131,7 +157,7 @@ Named volumes are kept; database and Kafka data remain.
 docker compose down -v
 ```
 
-**Warning:** `-v` permanently removes the Compose named volumes (`customer-db-data`, `account-db-data`, `payment-db-data`, `kafka-data`). All local DB and Kafka data is deleted.
+**Warning:** `-v` permanently removes all Compose named volumes. Database, Kafka, Prometheus, Tempo, Loki, Alloy, and Grafana local data is deleted. It is never required for routine startup or verification.
 
 ## Build the whole project
 
@@ -209,13 +235,13 @@ docker exec -it treasuryhub-account-db psql -U treasury -d account_db -c "SELECT
 docker exec -it treasuryhub-payment-db psql -U treasury -d payment_db -c "SELECT * FROM service_metadata;"
 
 # Port already in use
-netstat -ano | findstr "8081 8082 8083 5433 5434 5435 9092 8090 8091"
+netstat -ano | findstr "3000 3100 3200 4317 4318 8081 8082 8083 5433 5434 5435 9090 9092 8090 8091 12345"
 ```
 
 PowerShell port check:
 
 ```powershell
-Get-NetTCPConnection -LocalPort 8081,8082,8083,5433,5434,5435,9092,8090,8091 -ErrorAction SilentlyContinue
+Get-NetTCPConnection -LocalPort 3000,3100,3200,4317,4318,8081,8082,8083,5433,5434,5435,9090,9092,8090,8091,12345 -ErrorAction SilentlyContinue
 ```
 
 If Flyway fails on startup, confirm the matching DB container is healthy and credentials match `application-local.yml` (`treasury` / `treasury`).

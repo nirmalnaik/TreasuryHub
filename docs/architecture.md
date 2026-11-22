@@ -22,13 +22,21 @@ Every service owns its schema and PostgreSQL database:
 
 ## Local runtime split
 
-Infrastructure (PostgreSQL, Kafka, Kafka UI) runs in Docker Compose. Spring Boot apps initially run from IntelliJ or Maven.
+Infrastructure (PostgreSQL, Kafka, Kafka UI, Swagger UI, and the observability stack) runs in Docker Compose. Spring Boot apps run from IntelliJ or Maven.
 
 **Why:** containers give reproducible databases and brokers; IDE/Maven runs keep breakpoints, hot reload, and fast iteration without rebuilding images for every code change.
 
 ## Kafka (present, unused)
 
 Kafka is provisioned now so payment-service can later publish payment lifecycle events without reinventing infrastructure. No topics, producers, consumers, or listeners are implemented yet. Serializer defaults exist only so the payment service can start cleanly when the broker is up.
+
+## Observability
+
+All services use Micrometer with the OpenTelemetry bridge. HTTP requests, selected business methods, and JDBC operations create spans; OTLP traces flow from the Windows host to Grafana Alloy and then Tempo. Prometheus scrapes each host application's local Actuator endpoint through `host.docker.internal`. Tempo generates service-graph and span metrics back into Prometheus.
+
+Applications also write ECS JSON logs with trace and span identifiers to a gitignored host directory. Alloy tails that Docker-mounted directory and sends records to Loki. Grafana provisions Prometheus, Tempo, and Loki automatically and links traces to logs in both directions.
+
+The service graph represents observed traffic only. Current relationships are external caller → service and service → its own PostgreSQL database. There are no Customer → Account → Payment edges because no cross-service workflow exists. See [observability.md](./observability.md) for operation and troubleshooting.
 
 ## Intentionally postponed
 
@@ -38,8 +46,7 @@ These are **out of scope** for the foundation and will be added only when the ne
 - Service discovery (Eureka, Consul, etc.)
 - Centralized Config Server
 - Kubernetes
-- Spring Security / OAuth
-- Distributed tracing
+- Full authentication and authorization (OAuth/OIDC)
 - Resilience libraries (circuit breakers, bulkheads)
 - Redis
 - Shared common libraries
@@ -61,7 +68,7 @@ Canonical diagrams (context, ports, Compose, current vs planned communication) l
 - Asynchronous payment events on Kafka
 - Notifications, retries, idempotency, and partial-failure handling
 - Reporting / transaction history views
-- Security, gateway routing, observability, and deployment hardening
+- Security, gateway routing, and deployment hardening
 
 ## Technology baseline
 
@@ -69,5 +76,6 @@ Canonical diagrams (context, ports, Compose, current vs planned communication) l
 - Spring Web, Validation, Data JPA, Actuator
 - PostgreSQL + Flyway (`ddl-auto: validate`)
 - Spring Kafka (payment-service dependency only for now)
+- Micrometer, OpenTelemetry, Prometheus, Alloy, Tempo, Loki, and Grafana
 - JUnit 5, Mockito, Testcontainers
 - Docker Compose for local infrastructure

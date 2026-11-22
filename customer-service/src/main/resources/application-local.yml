@@ -19,6 +19,13 @@ spring:
     locations: classpath:db/migration
 
 management:
+  metrics:
+    enable:
+      db.client: false
+      jdbc: false
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:
@@ -35,9 +42,17 @@ management:
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
 
+jdbc:
+  includes: QUERY,CONNECTION
+  datasource-proxy:
+    include-parameter-values: false
+  opentelemetry:
+    metrics:
+      enabled: false
+
 logging:
   file:
-    name: ${TREASURYHUB_LOG_FILE:logs/customer-service.json}
+    name: ${TREASURYHUB_LOG_FILE:../logs/customer-service.json}
   structured:
     format:
       file: ecs
