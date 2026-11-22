@@ -102,6 +102,18 @@ services:
       kafka:
         condition: service_healthy
 
+  api-docs:
+    image: swaggerapi/swagger-ui:v5.32.14
+    container_name: treasuryhub-api-docs
+    restart: unless-stopped
+    ports:
+      - "8091:8080"
+    environment:
+      URLS: >-
+        [{"url":"http://localhost:8081/v3/api-docs","name":"customer-service"},{"url":"http://localhost:8082/v3/api-docs","name":"account-service"},{"url":"http://localhost:8083/v3/api-docs","name":"payment-service"}]
+      URLS_PRIMARY_NAME: customer-service
+      SUPPORTED_SUBMIT_METHODS: "[]"
+
 volumes:
   customer-db-data:
   account-db-data:

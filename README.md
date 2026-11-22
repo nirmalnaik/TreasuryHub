@@ -1,10 +1,10 @@
 # TreasuryHub — corporate banking and cash-management microservices (learning platform)
 
-TreasuryHub is a production-style Java microservices foundation for corporate banking and cash management. This repository currently provides the local development stack only: three independently runnable Spring Boot services, dedicated PostgreSQL databases, Kafka (KRaft), and Flyway — without business features yet.
+TreasuryHub is a production-style Java microservices learning platform for corporate banking and cash management. It contains three independently runnable Spring Boot services, dedicated PostgreSQL databases, Kafka (KRaft), Flyway, and centralized local API documentation.
 
 ## Architecture overview
 
-Maven monorepo with three independently deployable services. Each service owns its database. Infrastructure (PostgreSQL × 3, Kafka, Kafka UI) runs in Docker Compose; applications run from Maven or IntelliJ for easy debugging.
+Maven monorepo with three independently deployable services. Each service owns its database. Infrastructure (PostgreSQL × 3, Kafka, Kafka UI, centralized Swagger UI) runs in Docker Compose; applications run from Maven or IntelliJ for easy debugging.
 
 See [docs/architecture.md](docs/architecture.md) for design rationale and [docs/architecture-diagram.md](docs/architecture-diagram.md) for the living architecture diagrams (update that file whenever topology changes).
 
@@ -44,7 +44,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-PowerShell (same commands). Expect `customer-db`, `account-db`, `payment-db`, `kafka`, and `kafka-ui` to be running; databases should report healthy.
+PowerShell (same commands). Expect `customer-db`, `account-db`, `payment-db`, `kafka`, `kafka-ui`, and `api-docs` to be running; databases should report healthy.
 
 ## Run each service from Maven
 
@@ -84,6 +84,32 @@ Default profile is `local` (see each service’s `application.yml`).
 - http://localhost:8083/actuator/health
 
 Info endpoints: `/actuator/info` on the same ports.
+
+## API documentation
+
+Start Docker Compose and all three Spring Boot services, then open the centralized, browse-only API catalog:
+
+- http://localhost:8091
+
+Use the definition selector in the Swagger UI header to switch between `customer-service`, `account-service`, and `payment-service`. The centralized UI disables request submission; use a service's own Swagger UI when intentionally exercising an implemented endpoint.
+
+| Service | Route | Status |
+| --- | --- | --- |
+| Customer | `POST /api/v1/companies` | Implemented |
+| Customer | `POST /api/v1/companies/{companyId}/users` | Blocked with `403` until corporate ADMIN authorization exists |
+| Account | `POST /api/v1/accounts` | Implemented |
+| Account | `GET /api/v1/accounts/{accountId}` | Implemented |
+| Payment | No business HTTP routes | Future; its OpenAPI document intentionally has no paths |
+
+Per-service Swagger UI and raw OpenAPI documents remain available:
+
+| Service | Swagger UI | OpenAPI JSON |
+| --- | --- | --- |
+| Customer | http://localhost:8081/swagger-ui.html | http://localhost:8081/v3/api-docs |
+| Account | http://localhost:8082/swagger-ui.html | http://localhost:8082/v3/api-docs |
+| Payment | http://localhost:8083/swagger-ui.html | http://localhost:8083/v3/api-docs |
+
+Only OpenAPI document reads from `http://localhost:8091` are allowed cross-origin in the `local` profile. This does not relax CORS or authorization for business endpoints. Override the documentation origin with `API_DOCS_UI_ORIGIN` if the centralized UI is served from another local origin.
 
 ## Kafka UI
 
@@ -183,15 +209,17 @@ docker exec -it treasuryhub-account-db psql -U treasury -d account_db -c "SELECT
 docker exec -it treasuryhub-payment-db psql -U treasury -d payment_db -c "SELECT * FROM service_metadata;"
 
 # Port already in use
-netstat -ano | findstr "8081 8082 8083 5433 5434 5435 9092 8090"
+netstat -ano | findstr "8081 8082 8083 5433 5434 5435 9092 8090 8091"
 ```
 
 PowerShell port check:
 
 ```powershell
-Get-NetTCPConnection -LocalPort 8081,8082,8083,5433,5434,5435,9092,8090 -ErrorAction SilentlyContinue
+Get-NetTCPConnection -LocalPort 8081,8082,8083,5433,5434,5435,9092,8090,8091 -ErrorAction SilentlyContinue
 ```
 
 If Flyway fails on startup, confirm the matching DB container is healthy and credentials match `application-local.yml` (`treasury` / `treasury`).
 
 If Kafka UI cannot list brokers, wait until `kafka` is healthy, then refresh http://localhost:8090.
+
+If the centralized Swagger UI cannot load a specification, confirm that the matching Spring Boot service is running and that its `http://localhost:PORT/v3/api-docs` URL works directly.
