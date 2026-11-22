@@ -18,6 +18,8 @@ import com.treasuryhub.customer.exception.corporateuser.DuplicateCorporateUserEx
 import com.treasuryhub.customer.repository.company.CompanyRepository;
 import com.treasuryhub.customer.repository.corporateuser.CorporateUserRepository;
 
+import io.micrometer.observation.annotation.Observed;
+
 @Service
 public class CorporateUserRegistrationServiceImpl implements CorporateUserRegistrationService {
 
@@ -38,6 +40,7 @@ public class CorporateUserRegistrationServiceImpl implements CorporateUserRegist
     }
 
     @Transactional
+    @Observed(name = "treasuryhub.corporate.user.registration", contextualName = "register-corporate-user")
     @Override
     public CorporateUserRegistrationResult register(UUID companyId, String email, String plaintextPassword) {
         if (companyId == null) {

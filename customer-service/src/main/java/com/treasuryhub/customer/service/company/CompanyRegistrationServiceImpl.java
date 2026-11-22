@@ -11,6 +11,8 @@ import com.treasuryhub.customer.entity.company.Company;
 import com.treasuryhub.customer.exception.company.DuplicateCompanyException;
 import com.treasuryhub.customer.repository.company.CompanyRepository;
 
+import io.micrometer.observation.annotation.Observed;
+
 @Service
 public class CompanyRegistrationServiceImpl implements CompanyRegistrationService {
 
@@ -23,6 +25,7 @@ public class CompanyRegistrationServiceImpl implements CompanyRegistrationServic
     }
 
     @Transactional
+    @Observed(name = "treasuryhub.company.registration", contextualName = "register-company")
     @Override
     public Company register(String legalName, String registrationNumber, String countryCode) {
         Company company = Company.register(legalName, registrationNumber, countryCode);

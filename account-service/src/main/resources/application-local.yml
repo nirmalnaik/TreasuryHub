@@ -19,9 +19,33 @@ spring:
     locations: classpath:db/migration
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: always
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+
+logging:
+  file:
+    name: ${TREASURYHUB_LOG_FILE:logs/account-service.json}
+  structured:
+    format:
+      file: ecs
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 7
+      total-size-cap: 100MB
 
 treasuryhub:
   api-docs:

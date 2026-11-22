@@ -1,5 +1,6 @@
 package com.treasuryhub.customer;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -24,13 +25,22 @@ import com.treasuryhub.customer.repository.company.CompanyRepository;
 import com.treasuryhub.customer.repository.corporateuser.CorporateUserRepository;
 import com.treasuryhub.customer.service.corporateuser.CorporateUserRegistrationService;
 
-@SpringBootTest(properties = "treasuryhub.api-docs.ui-origin=http://localhost:8091")
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.sdk.resources.Resource;
+
+@SpringBootTest(properties = {
+        "treasuryhub.api-docs.ui-origin=http://localhost:8091",
+        "management.endpoints.web.exposure.include=health,info,prometheus"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class CustomerServiceApplicationTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private Resource openTelemetryResource;
 
     @MockitoBean
     private CompanyRepository companyRepository;
@@ -43,6 +53,21 @@ class CustomerServiceApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void prometheusEndpointExposesMetricsWithCustomerServiceIdentity() throws Exception {
+        String metrics = mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(openTelemetryResource.getAttribute(AttributeKey.stringKey("service.name")))
+                .isEqualTo("customer-service");
+        assertThat(metrics)
+                .contains("jvm_memory_used_bytes")
+                .contains("application=\"customer-service\"");
     }
 
     @Test

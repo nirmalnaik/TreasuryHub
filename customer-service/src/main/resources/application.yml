@@ -8,6 +8,19 @@ spring:
       fail-on-unknown-properties: true
 
 management:
+  observations:
+    annotations:
+      enabled: true
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+      service.namespace: treasuryhub
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    propagation:
+      type: w3c
   endpoints:
     web:
       exposure:

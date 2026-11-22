@@ -1,5 +1,6 @@
 package com.treasuryhub.payment;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,7 +14,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = "treasuryhub.api-docs.ui-origin=http://localhost:8091")
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.sdk.resources.Resource;
+
+@SpringBootTest(properties = {
+        "treasuryhub.api-docs.ui-origin=http://localhost:8091",
+        "management.endpoints.web.exposure.include=health,info,prometheus"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PaymentServiceApplicationTests {
@@ -21,8 +28,26 @@ class PaymentServiceApplicationTests {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private Resource openTelemetryResource;
+
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void prometheusEndpointExposesMetricsWithPaymentServiceIdentity() throws Exception {
+        String metrics = mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(openTelemetryResource.getAttribute(AttributeKey.stringKey("service.name")))
+                .isEqualTo("payment-service");
+        assertThat(metrics)
+                .contains("jvm_memory_used_bytes")
+                .contains("application=\"payment-service\"");
     }
 
     @Test
